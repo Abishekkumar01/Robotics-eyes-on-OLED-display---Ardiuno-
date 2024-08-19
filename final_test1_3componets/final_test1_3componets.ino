@@ -68,27 +68,6 @@ void center_eyes(bool update = true)
     draw_eyes(update);
 }
 
-void draw_smile()
-{
-    // Draw the smile using an arc approximation with lines
-    int smileCenterX = SCREEN_WIDTH / 2;
-    int smileCenterY = SCREEN_HEIGHT / 2 + 20;
-    int smileRadius = 15;
-    int startAngle = 0;
-    int endAngle = 180;
-
-    for (int angle = startAngle; angle <= endAngle; angle++)
-    {
-        float rad = angle * 3.14159 / 180.0;
-        int x = smileCenterX + smileRadius * cos(rad);
-        int y = smileCenterY + smileRadius * sin(rad);
-        display.drawPixel(x, y, SSD1306_WHITE);
-    }
-
-    display.display();
-    delay(1000);
-}
-
 void blink(int speed = 12)
 {
     draw_eyes();
@@ -110,6 +89,28 @@ void blink(int speed = 12)
     }
 }
 
+void sleep()
+{
+    left_eye_height = 2;
+    right_eye_height = 2;
+    draw_eyes(true);
+    display.fillRect(left_eye_x - left_eye_width / 2, left_eye_y - 2, left_eye_width, 4, SSD1306_WHITE);
+    display.fillRect(right_eye_x - right_eye_width / 2, right_eye_y - 2, right_eye_width, 4, SSD1306_WHITE);
+    display.display();
+    delay(2000);
+}
+
+void wakeup()
+{
+    sleep();
+    for (int h = 0; h <= ref_eye_height; h += 2)
+    {
+        left_eye_height = h;
+        right_eye_height = h;
+        draw_eyes(true);
+    }
+}
+
 void happy_eye()
 {
     center_eyes(false);
@@ -123,22 +124,45 @@ void happy_eye()
         delay(1);
     }
 
-    draw_smile();
+    // Draw the smile using an arc approximation with lines
+    int smileCenterX = (left_eye_x + right_eye_x) / 2;
+    int smileCenterY = (left_eye_y + right_eye_y) / 2 + 20;
+    int smileRadius = 15;
+    int startAngle = 0;
+    int endAngle = 180;
+
+    for (int angle = startAngle; angle <= endAngle; angle++)
+    {
+        float rad = angle * 3.14159 / 180.0;
+        int x = smileCenterX + smileRadius * cos(rad);
+        int y = smileCenterY + smileRadius * sin(rad);
+        display.drawPixel(x, y, SSD1306_WHITE);
+    }
+
+    display.display();
+    delay(1000);
+}
+
+void look_left()
+{
+    left_eye_x -= 6;
+    right_eye_x -= 6;
+    draw_eyes(true);
+}
+
+void look_right()
+{
+    left_eye_x += 6;
+    right_eye_x += 6;
+    draw_eyes(true);
 }
 
 void setup()
 {
+    // Initialize Serial Monitor
     Serial.begin(9600);
-
-    // Servo setup
-    myServo.attach(9);
-    myServo.write(0); // Initial position
-
-    // Ultrasonic sensor setup
-    pinMode(trigPin, OUTPUT);
-    pinMode(echoPin, INPUT);
-
-    // OLED setup
+    
+    // Initialize OLED display
     if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
     {
         Serial.println(F("SSD1306 allocation failed"));
@@ -149,30 +173,48 @@ void setup()
     display.display();
     delay(2000);
     display.clearDisplay();
+
+    // Initialize servo
+    myServo.attach(9); // Attaches the servo on pin 9
+
+    // Initialize ultrasonic sensor pins
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+
+    // Initial eye position
     center_eyes();
+    delay(2000);
 }
 
 void loop()
 {
-    // Measure distance
-    digitalWrite(trigPin, LOW);
-    delayMicroseconds(2);
+    // Measure distance using ultrasonic sensor
     digitalWrite(trigPin, HIGH);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, LOW);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
     duration = pulseIn(echoPin, HIGH);
-    distance = duration * 0.034 / 2; // Calculate the distance in cm
+    distance = duration * 0.0344 / 2;
 
-    if (distance <= 10)
+    // Display distance on Serial Monitor
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    if (distance < 10)
     {
-        myServo.write(0); // Move servo to 180 degrees
-        happy_eye();        // Display happy eyes and smile on OLED
+        // If an object is detected within 10 cm, make the eyes "happy" and move the servo
+        happy_eye();
+        myServo.write(90);  // Move servo to 90 degrees
+        delay(1000);
     }
     else
     {
-        myServo.write(180); // Reset servo position
-        blink();          // Default blinking eyes animation
+        // Return eyes to the center and move the servo back
+        center_eyes();
+        myServo.write(0);  // Move servo back to 0 degrees
     }
 
-    delay(1000); // Delay for readability
+    delay(500);  // Wait for a while before the next loop iteration
 }
